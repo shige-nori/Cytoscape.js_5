@@ -332,6 +332,71 @@ class NetworkManager {
             edgeCount: this.edges.length
         };
     }
+
+    /**
+     * ネットワークをJSON形式でエクスポート
+     * @returns {Object} - エクスポートデータ
+     */
+    exportToJSON() {
+        if (!this.cy) return null;
+
+        const elements = this.cy.elements().jsons();
+        
+        return {
+            version: '1.0',
+            exportDate: new Date().toISOString(),
+            nodes: Array.from(this.nodes.entries()),
+            edges: this.edges,
+            nodeAttributes: Array.from(this.nodeAttributes.entries()),
+            edgeAttributes: this.edgeAttributes,
+            cytoscapeElements: elements
+        };
+    }
+
+    /**
+     * JSON形式からネットワークをインポート
+     * @param {Object} data - インポートデータ
+     * @returns {boolean} - 成功したかどうか
+     */
+    importFromJSON(data) {
+        if (!this.cy || !data) return false;
+
+        try {
+            // 既存データをクリア
+            this.clear();
+
+            // データを復元
+            this.nodes = new Map(data.nodes || []);
+            this.edges = data.edges || [];
+            this.nodeAttributes = new Map(data.nodeAttributes || []);
+            this.edgeAttributes = data.edgeAttributes || [];
+
+            // Cytoscape要素を復元
+            if (data.cytoscapeElements && data.cytoscapeElements.length > 0) {
+                // 空状態メッセージを削除
+                this.hideEmptyState();
+                
+                this.cy.add(data.cytoscapeElements);
+                this.cy.fit(50);
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Import error:', error);
+            return false;
+        }
+    }
+
+    /**
+     * 空状態メッセージを非表示
+     */
+    hideEmptyState() {
+        const container = document.getElementById('cy');
+        const emptyState = container.querySelector('.empty-state');
+        if (emptyState) {
+            emptyState.remove();
+        }
+    }
 }
 
 // グローバルインスタンス

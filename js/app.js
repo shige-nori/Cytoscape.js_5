@@ -5,6 +5,7 @@ class App {
     constructor() {
         this.networkFileData = null;
         this.tableFileData = null;
+        this.currentFileHandle = null; // 現在開いている/保存したファイルのハンドル
         this.dataTypes = [
             { value: 'string', label: 'String' },
             { value: 'number', label: 'Integer' },
@@ -71,14 +72,115 @@ class App {
      * イベントリスナーを設定
      */
     setupEventListeners() {
+                // メニュー: Close
+                document.getElementById('menu-close').addEventListener('click', (e) => {
+                    const menuItem = document.getElementById('menu-close');
+                    if (menuItem.classList.contains('disabled')) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                    }
+                    // ネットワーク図が存在する場合のみクリア
+                    if (networkManager.cy && networkManager.cy.nodes().length > 0) {
+                        networkManager.clear();
+                        // ファイルハンドルをクリア
+                        this.currentFileHandle = null;
+                        // Save/Save As/Table File/Closeメニューを無効化
+                        document.getElementById('menu-save').classList.add('disabled');
+                        document.getElementById('menu-save-as').classList.add('disabled');
+                        document.getElementById('menu-table-file').classList.add('disabled');
+                        document.getElementById('menu-close').classList.add('disabled');
+                    }
+                });
         // メニュー: Network File
         document.getElementById('menu-network-file').addEventListener('click', () => {
+            // ネットワーク図がすでに存在する場合は確認モーダルを表示
+            if (networkManager.cy && networkManager.cy.nodes().length > 0) {
+                this.showConfirmModal(
+                    '現在のネットワーク図は失われます。<br>新しいネットワーク図を読み込みますか？',
+                    () => {
+                        // 既存のネットワークをクリア
+                        networkManager.clear();
+                        // Table Fileメニューを無効化
+                        document.getElementById('menu-table-file').classList.add('disabled');
+                        // Save/Save As/Closeメニューを無効化
+                        document.getElementById('menu-save').classList.add('disabled');
+                        document.getElementById('menu-save-as').classList.add('disabled');
+                        document.getElementById('menu-close').classList.add('disabled');
+                        document.getElementById('network-file-input').click();
+                    }
+                );
+                return;
+            }
             document.getElementById('network-file-input').click();
         });
 
         // メニュー: Table File
-        document.getElementById('menu-table-file').addEventListener('click', () => {
+        document.getElementById('menu-table-file').addEventListener('click', (e) => {
+            const menuItem = document.getElementById('menu-table-file');
+            if (menuItem.classList.contains('disabled')) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
             document.getElementById('table-file-input').click();
+        });
+
+        // メニュー: Save（上書き保存）
+        document.getElementById('menu-save').addEventListener('click', (e) => {
+            const menuItem = document.getElementById('menu-save');
+            if (menuItem.classList.contains('disabled')) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            this.saveNetwork();
+        });
+
+        // メニュー: Save As（名前を付けて保存）
+        document.getElementById('menu-save-as').addEventListener('click', (e) => {
+            const menuItem = document.getElementById('menu-save-as');
+            if (menuItem.classList.contains('disabled')) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            this.saveNetworkAs();
+        });
+
+        // メニュー: Open
+        document.getElementById('menu-open').addEventListener('click', () => {
+            // ネットワーク図がすでに存在する場合は確認モーダルを表示
+            if (networkManager.cy && networkManager.cy.nodes().length > 0) {
+                this.showConfirmModal(
+                    '現在のネットワーク図は失われます。<br>保存したネットワーク図を開きますか？',
+                    () => {
+                        // 既存のネットワークをクリア
+                        networkManager.clear();
+                        // ファイルハンドルをクリア
+                        this.currentFileHandle = null;
+                        // Table Fileメニューを無効化
+                        document.getElementById('menu-table-file').classList.add('disabled');
+                        // Saveメニューを無効化
+                        document.getElementById('menu-save').classList.add('disabled');
+                        // Save Asメニューを無効化
+                        document.getElementById('menu-save-as').classList.add('disabled');
+                        // Closeメニューを無効化
+                        document.getElementById('menu-close').classList.add('disabled');
+                        this.openNetworkWithPicker();
+                    }
+                );
+                return;
+            }
+            this.openNetworkWithPicker();
+        });
+
+        // ファイル入力: Open File（フォールバック用）
+        document.getElementById('open-file-input').addEventListener('change', async (e) => {
+            if (e.target.files.length > 0) {
+                await this.openNetwork(e.target.files[0], null);
+                e.target.value = ''; // リセット
+            }
         });
 
         // ファイル入力: Network File
@@ -148,8 +250,9 @@ class App {
         try {
             this.networkFileData = await fileHandler.readFile(file);
             this.networkFileData.fileName = file.name;
-            
             this.showNetworkModal();
+            // Closeメニューを有効化
+            document.getElementById('menu-close').classList.remove('disabled');
         } catch (error) {
             alert(`Error reading file: ${error.message}`);
         }
@@ -163,8 +266,9 @@ class App {
         try {
             this.tableFileData = await fileHandler.readFile(file);
             this.tableFileData.fileName = file.name;
-            
             this.showTableModal();
+            // Closeメニューを有効化
+            document.getElementById('menu-close').classList.remove('disabled');
         } catch (error) {
             alert(`Error reading file: ${error.message}`);
         }
@@ -464,6 +568,13 @@ class App {
 
             this.closeModal('network-modal');
 
+            // Table Fileメニューを有効化
+            document.getElementById('menu-table-file').classList.remove('disabled');
+            // Save Asメニューを有効化（新規インポートなのでSaveは無効のまま）
+            document.getElementById('menu-save-as').classList.remove('disabled');
+            // ファイルハンドルをクリア
+            this.currentFileHandle = null;
+
             // 統計を表示
             const stats = networkManager.getStats();
             console.log(`Imported: ${stats.nodeCount} nodes, ${stats.edgeCount} edges`);
@@ -549,6 +660,40 @@ class App {
     }
 
     /**
+     * 確認モーダルを表示
+     * @param {string} message - 表示するメッセージ
+     * @param {Function} onConfirm - OKクリック時のコールバック
+     */
+    showConfirmModal(message, onConfirm) {
+        const modal = document.getElementById('confirm-modal');
+        const messageEl = document.getElementById('confirm-modal-message');
+        const okBtn = document.getElementById('confirm-modal-ok');
+        const cancelBtn = document.getElementById('confirm-modal-cancel');
+
+        messageEl.innerHTML = message;
+        modal.classList.add('active');
+
+        // 既存のイベントリスナーを削除（重複防止）
+        const newOkBtn = okBtn.cloneNode(true);
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+        // OKボタン
+        newOkBtn.addEventListener('click', () => {
+            modal.classList.remove('active');
+            if (onConfirm) {
+                onConfirm();
+            }
+        });
+
+        // キャンセルボタン
+        newCancelBtn.addEventListener('click', () => {
+            modal.classList.remove('active');
+        });
+    }
+
+    /**
      * HTMLエスケープ
      * @param {string} str 
      * @returns {string}
@@ -557,6 +702,150 @@ class App {
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+    }
+
+    /**
+     * ネットワークを上書き保存
+     */
+    async saveNetwork() {
+        if (!this.currentFileHandle) {
+            // ファイルハンドルがない場合は何もしない（メニューが無効化されているはず）
+            return;
+        }
+
+        const data = networkManager.exportToJSON();
+        if (!data) {
+            alert('保存するネットワークがありません。');
+            return;
+        }
+
+        try {
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const writable = await this.currentFileHandle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+        } catch (err) {
+            console.error('Save error:', err);
+            alert('保存に失敗しました。\n' + err.message);
+        }
+    }
+
+    /**
+     * ネットワークを名前を付けて保存
+     */
+    async saveNetworkAs() {
+        const data = networkManager.exportToJSON();
+        if (!data) {
+            alert('保存するネットワークがありません。');
+            return;
+        }
+
+        const json = JSON.stringify(data, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+
+        // File System Access API をサポートしているかチェック
+        if ('showSaveFilePicker' in window) {
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: 'network.cynet',
+                    types: [{
+                        description: 'Cytoscape Network File',
+                        accept: { 'application/json': ['.cynet'] }
+                    }]
+                });
+                const writable = await handle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+
+                // ファイルハンドルを保存（上書き保存用）
+                this.currentFileHandle = handle;
+                // Saveメニューを有効化
+                document.getElementById('menu-save').classList.remove('disabled');
+                return;
+            } catch (err) {
+                // ユーザーがキャンセルした場合
+                if (err.name === 'AbortError') {
+                    return;
+                }
+                console.error('Save error:', err);
+            }
+        }
+
+        // フォールバック: 従来のダウンロード方式（上書き保存は不可）
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'network.cynet';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    /**
+     * ファイルピッカーを使ってネットワークファイルを開く
+     */
+    async openNetworkWithPicker() {
+        // File System Access API をサポートしているかチェック
+        if ('showOpenFilePicker' in window) {
+            try {
+                const [handle] = await window.showOpenFilePicker({
+                    types: [{
+                        description: 'Cytoscape Network File',
+                        accept: { 'application/json': ['.cynet'] }
+                    }]
+                });
+                const file = await handle.getFile();
+                await this.openNetwork(file, handle);
+                return;
+            } catch (err) {
+                // ユーザーがキャンセルした場合
+                if (err.name === 'AbortError') {
+                    return;
+                }
+                console.error('Open error:', err);
+            }
+        }
+
+        // フォールバック: 従来のファイル入力
+        document.getElementById('open-file-input').click();
+    }
+
+    /**
+     * ネットワークファイルを開く
+     * @param {File} file - 開くファイル
+     * @param {FileSystemFileHandle|null} handle - ファイルハンドル
+     */
+    async openNetwork(file, handle = null) {
+        try {
+            const text = await file.text();
+            const data = JSON.parse(text);
+
+            const success = networkManager.importFromJSON(data);
+            if (success) {
+                // Table Fileメニューを有効化
+                document.getElementById('menu-table-file').classList.remove('disabled');
+                // Save Asメニューを有効化
+                document.getElementById('menu-save-as').classList.remove('disabled');
+                // Closeメニューを有効化
+                document.getElementById('menu-close').classList.remove('disabled');
+
+                // ファイルハンドルがある場合はSaveも有効化
+                if (handle) {
+                    this.currentFileHandle = handle;
+                    document.getElementById('menu-save').classList.remove('disabled');
+                }
+
+                const stats = networkManager.getStats();
+                console.log(`Opened: ${stats.nodeCount} nodes, ${stats.edgeCount} edges`);
+            } else {
+                alert('ファイルの読み込みに失敗しました。');
+            }
+        } catch (error) {
+            console.error('Open error:', error);
+            alert('ファイルの読み込みに失敗しました。\n' + error.message);
+        }
     }
 }
 

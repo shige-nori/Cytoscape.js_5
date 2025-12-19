@@ -111,6 +111,11 @@ body {
 .submenu-item.disabled {
     color: var(--text-light);
     cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.submenu-item.disabled:hover {
+    background-color: transparent;
 }
 
 .submenu-item.has-submenu {
@@ -259,6 +264,24 @@ body {
     border-top: 1px solid var(--border-color);
     background: var(--background-color);
     border-radius: 0 0 12px 12px;
+}
+
+/* 確認モーダル */
+.confirm-modal-content {
+    max-width: 400px;
+    min-width: 300px;
+}
+
+.confirm-modal .modal-body {
+    padding: 24px;
+    text-align: center;
+}
+
+.confirm-modal .modal-body p {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-color);
+    margin: 0;
 }
 
 /* =========================================
