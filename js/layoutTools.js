@@ -274,8 +274,9 @@ class LayoutTools {
     }
 
     /**
-     * Equalizeレイアウト - ネットワーク図を縦横同じ比率に自動調整
-     * 現在のレイアウトのアスペクト比を1:1に調整する
+     * Equalizeレイアウト - 縦横比1:1で各階層のノードを端から端まで均等配置
+     * 全階層で同じ横幅を使用し、各階層内でノードを均等に配置する
+     * ノード数が少ない階層は間隔が広く、多い階層は間隔が狭くなる
      */
     equalizeLayout() {
         if (!networkManager.cy) return;
@@ -283,45 +284,94 @@ class LayoutTools {
         const nodes = networkManager.cy.nodes();
         if (nodes.length === 0) return;
 
-        // 現在のバウンディングボックスを取得
+        // Y座標でノードをグループ化（同じ階層を識別）
+        // 許容範囲を設定（ノード間のY座標差がこの値以下なら同じ階層とみなす）
+        const yTolerance = 30;
+        
+        // ノードをY座標でソート
+        const sortedNodes = nodes.toArray().sort((a, b) => a.position().y - b.position().y);
+        
+        // 階層（行）にグループ化
+        const rows = [];
+        let currentRow = [];
+        let currentY = null;
+
+        sortedNodes.forEach(node => {
+            const pos = node.position();
+            
+            if (currentY === null || Math.abs(pos.y - currentY) <= yTolerance) {
+                // 同じ行に追加
+                currentRow.push(node);
+                if (currentY === null) {
+                    currentY = pos.y;
+                } else {
+                    // 行のY座標を平均値に更新
+                    currentY = currentRow.reduce((sum, n) => sum + n.position().y, 0) / currentRow.length;
+                }
+            } else {
+                // 新しい行を開始
+                if (currentRow.length > 0) {
+                    rows.push({ nodes: currentRow, y: currentY });
+                }
+                currentRow = [node];
+                currentY = pos.y;
+            }
+        });
+        
+        // 最後の行を追加
+        if (currentRow.length > 0) {
+            rows.push({ nodes: currentRow, y: currentY });
+        }
+
+        if (rows.length === 0) return;
+
+        // 各行内のノードをX座標でソート
+        rows.forEach(row => {
+            row.nodes.sort((a, b) => a.position().x - b.position().x);
+        });
+
+        // 行数を取得
+        const rowCount = rows.length;
+
+        // 現在の全体サイズから基準サイズを算出
         const bb = nodes.boundingBox();
-        const width = bb.x2 - bb.x1;
-        const height = bb.y2 - bb.y1;
+        const currentWidth = bb.x2 - bb.x1;
+        const currentHeight = bb.y2 - bb.y1;
+        
+        // 縦横比1:1にするため、大きい方のサイズを基準にする
+        const layoutSize = Math.max(currentWidth, currentHeight);
 
-        // 幅または高さが0の場合は処理しない
-        if (width === 0 || height === 0) return;
-
-        // 中心座標を計算
+        // 全体の中心座標を計算
         const centerX = (bb.x1 + bb.x2) / 2;
         const centerY = (bb.y1 + bb.y2) / 2;
 
-        // アスペクト比を1:1にするためのスケール係数を計算
-        // 大きい方の辺を基準に、小さい方を拡大する
-        let scaleX = 1;
-        let scaleY = 1;
+        // 行間隔を計算（1:1比率なので横幅と同じサイズを縦にも使用）
+        const rowSpacing = rowCount > 1 ? layoutSize / (rowCount - 1) : 0;
 
-        if (width > height) {
-            // 横長の場合：縦を拡大
-            scaleY = width / height;
-        } else if (height > width) {
-            // 縦長の場合：横を拡大
-            scaleX = height / width;
-        }
-        // 正方形の場合は何もしない（scaleX = scaleY = 1）
+        // 各行のY座標と横位置を設定
+        rows.forEach((row, rowIndex) => {
+            // Y座標を計算（中央揃え、均等配置）
+            const newY = rowCount > 1 
+                ? centerY - layoutSize / 2 + rowIndex * rowSpacing
+                : centerY;
 
-        // 各ノードの位置を調整
-        nodes.forEach(node => {
-            const pos = node.position();
+            // 行内のノード数
+            const nodeCount = row.nodes.length;
             
-            // 中心からの相対位置を計算
-            const dx = pos.x - centerX;
-            const dy = pos.y - centerY;
+            // 各ノードを端から端まで均等に配置
+            if (nodeCount === 1) {
+                // ノードが1つの場合は中央に配置
+                row.nodes[0].position({ x: centerX, y: newY });
+            } else {
+                // ノード間隔を計算（横幅全体を使用）
+                const nodeSpacing = layoutSize / (nodeCount - 1);
+                const startX = centerX - layoutSize / 2;
 
-            // スケールを適用して新しい位置を計算
-            const newX = centerX + dx * scaleX;
-            const newY = centerY + dy * scaleY;
-
-            node.position({ x: newX, y: newY });
+                row.nodes.forEach((node, nodeIndex) => {
+                    const newX = startX + nodeIndex * nodeSpacing;
+                    node.position({ x: newX, y: newY });
+                });
+            }
         });
 
         // ビューをフィットさせる
