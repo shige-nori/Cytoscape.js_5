@@ -412,3 +412,4 @@ class NetworkManager {
 
 // グローバルインスタンス
 const networkManager = new NetworkManager();
+window.networkManager = networkManager;

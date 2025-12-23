@@ -72,6 +72,18 @@ class App {
      * イベントリスナーを設定
      */
     setupEventListeners() {
+        // メニュー: Style - Node
+        document.getElementById('menu-style-node').addEventListener('click', () => {
+            const panel = new StylePanel('node');
+            panel.initialize();
+        });
+
+        // メニュー: Style - Edge
+        document.getElementById('menu-style-edge').addEventListener('click', () => {
+            const panel = new StylePanel('edge');
+            panel.initialize();
+        });
+
                 // メニュー: Close
                 document.getElementById('menu-close').addEventListener('click', (e) => {
                     const menuItem = document.getElementById('menu-close');
