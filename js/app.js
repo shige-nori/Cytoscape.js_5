@@ -74,14 +74,12 @@ class App {
     setupEventListeners() {
         // メニュー: Style - Node
         document.getElementById('menu-style-node').addEventListener('click', () => {
-            const panel = new StylePanel('node');
-            panel.initialize();
+            StylePanel.show('node');
         });
 
         // メニュー: Style - Edge
         document.getElementById('menu-style-edge').addEventListener('click', () => {
-            const panel = new StylePanel('edge');
-            panel.initialize();
+            StylePanel.show('edge');
         });
 
                 // メニュー: Close
