@@ -51,6 +51,7 @@
                 <span class="menu-title">Layout</span>
                 <ul class="submenu">
                     <li class="submenu-item" id="menu-layout-tools">Layout Tools</li>
+                    <li class="submenu-item" id="menu-edge-bends">Edge Bends</li>
                     <li class="submenu-divider"></li>
                     <li class="submenu-item has-submenu">
                         <span>Hierarchical</span>
@@ -185,6 +186,38 @@
                         </div>
                     </div>
                     <div class="slider-value">Angle: <span id="rotate-value">0</span>°</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edge Bends ウィンドウ -->
+    <div id="edge-bends-panel" class="tools-panel">
+        <div class="tools-panel-header">
+            <h3>Edge Bends</h3>
+            <span class="tools-panel-close" id="edge-bends-close">&times;</span>
+        </div>
+        <div class="tools-panel-body">
+            <!-- Bend Strength セクション -->
+            <div class="tool-section">
+                <div class="tool-section-header">
+                    <span class="tool-section-title">カーブの強度</span>
+                </div>
+                <div class="tool-section-body">
+                    <p style="font-size: 12px; color: #64748b; margin-bottom: 12px;">
+                        同じノード間のエッジが重ならないようにカーブの広がりを調整します。
+                    </p>
+                    <div class="slider-container">
+                        <input type="range" id="bend-strength-slider" class="slider" min="1" max="100" step="1" value="40">
+                        <div class="slider-ticks" data-ticks="5">
+                            <div class="tick"><div class="tick-line"></div><span>小</span></div>
+                            <div class="tick"><div class="tick-line"></div><span></span></div>
+                            <div class="tick"><div class="tick-line"></div><span>中</span></div>
+                            <div class="tick"><div class="tick-line"></div><span></span></div>
+                            <div class="tick"><div class="tick-line"></div><span>大</span></div>
+                        </div>
+                    </div>
+                    <div class="slider-value">強度: <span id="bend-strength-value">40</span></div>
                 </div>
             </div>
         </div>

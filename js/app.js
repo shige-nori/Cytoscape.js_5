@@ -64,6 +64,9 @@ class App {
         // LayoutTools初期化
         layoutTools.initialize();
 
+        // EdgeBends初期化
+        edgeBends.initialize();
+
         // イベントリスナーを設定
         this.setupEventListeners();
     }
@@ -751,7 +754,13 @@ class App {
             return;
         }
 
+        // デバッグ: 保存データの確認
+        console.log('=== Save As Debug ===');
+        console.log('data.styleSettings:', data.styleSettings);
+        console.log('data.edgeBendsSettings:', data.edgeBendsSettings);
+
         const json = JSON.stringify(data, null, 2);
+        console.log('JSON length:', json.length);
         const blob = new Blob([json], { type: 'application/json' });
 
         // File System Access API をサポートしているかチェック

@@ -380,10 +380,153 @@ class LayoutTools {
             }
         });
 
-        // ビューをフィットさせる
-        networkManager.cy.fit(nodes, 50);
+        // ビューをフィットさせる（maxZoom制限付き）
+        networkManager.fitWithZoomLimit();
+    }
+}
+
+/**
+ * EdgeBends - エッジの曲げ強度設定ツール
+ */
+class EdgeBends {
+    constructor() {
+        this.panel = null;
+        this.currentBendStrength = 40;
+        this.isDragging = false;
+        this.dragOffset = { x: 0, y: 0 };
+    }
+
+    /**
+     * 初期化
+     */
+    initialize() {
+        this.panel = document.getElementById('edge-bends-panel');
+        if (!this.panel) return;
+        
+        this.setupEventListeners();
+    }
+
+    /**
+     * イベントリスナーを設定
+     */
+    setupEventListeners() {
+        // パネルを開く
+        const menuItem = document.getElementById('menu-edge-bends');
+        if (menuItem) {
+            menuItem.addEventListener('click', () => {
+                this.openPanel();
+            });
+        }
+
+        // パネルを閉じる
+        const closeBtn = document.getElementById('edge-bends-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                this.closePanel();
+            });
+        }
+
+        // Bend Strengthスライダー
+        const bendStrengthSlider = document.getElementById('bend-strength-slider');
+        if (bendStrengthSlider) {
+            bendStrengthSlider.addEventListener('input', (e) => {
+                this.currentBendStrength = parseInt(e.target.value);
+                document.getElementById('bend-strength-value').textContent = this.currentBendStrength;
+                this.applyEdgeBends();
+            });
+        }
+
+        // パネルのドラッグ移動
+        this.setupPanelDrag();
+    }
+
+    /**
+     * パネルのドラッグ移動を設定
+     */
+    setupPanelDrag() {
+        const header = this.panel.querySelector('.tools-panel-header');
+        if (!header) return;
+
+        header.addEventListener('mousedown', (e) => {
+            if (e.target.classList.contains('tools-panel-close')) return;
+            
+            this.isDragging = true;
+            const rect = this.panel.getBoundingClientRect();
+            this.dragOffset = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+            header.style.cursor = 'grabbing';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!this.isDragging) return;
+            
+            const x = e.clientX - this.dragOffset.x;
+            const y = e.clientY - this.dragOffset.y;
+            
+            this.panel.style.left = `${x}px`;
+            this.panel.style.top = `${y}px`;
+            this.panel.style.right = 'auto';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (this.isDragging) {
+                this.isDragging = false;
+                const header = this.panel.querySelector('.tools-panel-header');
+                if (header) header.style.cursor = 'grab';
+            }
+        });
+    }
+
+    /**
+     * パネルを開く
+     */
+    openPanel() {
+        if (!this.panel) return;
+        
+        this.panel.classList.add('active');
+        this.panel.style.top = '50px';
+        this.panel.style.right = '10px';
+        this.panel.style.left = 'auto';
+    }
+
+    /**
+     * パネルを閉じる
+     */
+    closePanel() {
+        if (this.panel) {
+            this.panel.classList.remove('active');
+        }
+    }
+
+    /**
+     * エッジの曲げ強度を適用
+     * control-point-step-size: 同じノード間のエッジがどれだけ離れるかを制御
+     */
+    applyEdgeBends() {
+        if (!window.networkManager || !networkManager.cy) {
+            console.log('networkManager or cy not available');
+            return;
+        }
+
+        const edges = networkManager.cy.edges();
+        if (edges.length === 0) return;
+
+        // control-point-step-size で同じノード間のエッジの間隔を調整
+        // 値が小さいとエッジが密集し、大きいと広がる
+        edges.style({
+            'curve-style': 'bezier',
+            'control-point-step-size': this.currentBendStrength
+        });
+
+        console.log('Edge bends applied: control-point-step-size =', this.currentBendStrength);
     }
 }
 
 // グローバルインスタンス
 const layoutTools = new LayoutTools();
+const edgeBends = new EdgeBends();
+
+// グローバルスコープに登録（他のモジュールからアクセス可能に）
+window.edgeBends = edgeBends;

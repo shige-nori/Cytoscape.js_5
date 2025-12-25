@@ -24,9 +24,9 @@ class NetworkManager {
             elements: [],
             style: this.getDefaultStyle(),
             layout: { name: 'preset' },
-            minZoom: 0.1,
-            maxZoom: 5,
-            wheelSensitivity: 0.3
+            minZoom: 0.01,
+            maxZoom: 10,
+            wheelSensitivity: 0.1
         });
 
         this.showEmptyState();
@@ -262,42 +262,42 @@ class NetworkManager {
                 rankSep: 80,
                 animate: true,
                 animationDuration: 500,
-                fit: true,
+                fit: false,
                 padding: 50
             },
             circle: {
                 name: 'circle',
                 animate: true,
                 animationDuration: 500,
-                fit: true,
+                fit: false,
                 padding: 50
             },
             grid: {
                 name: 'grid',
                 animate: true,
                 animationDuration: 500,
-                fit: true,
+                fit: false,
                 padding: 50
             },
             concentric: {
                 name: 'concentric',
                 animate: true,
                 animationDuration: 500,
-                fit: true,
+                fit: false,
                 padding: 50
             },
             breadthfirst: {
                 name: 'breadthfirst',
                 animate: true,
                 animationDuration: 500,
-                fit: true,
+                fit: false,
                 padding: 50
             },
             cose: {
                 name: 'cose',
                 animate: true,
                 animationDuration: 500,
-                fit: true,
+                fit: false,
                 padding: 50,
                 nodeRepulsion: 400000,
                 idealEdgeLength: 100
@@ -306,6 +306,12 @@ class NetworkManager {
 
         const options = layoutOptions[layoutName] || layoutOptions.dagre;
         const layout = this.cy.layout(options);
+        
+        // レイアウト完了後に手動でfit（maxZoom制限付き）
+        layout.on('layoutstop', () => {
+            this.fitWithZoomLimit();
+        });
+        
         layout.run();
     }
 
@@ -325,12 +331,47 @@ class NetworkManager {
     }
 
     /**
-     * ビューをフィット
+     * ビューをフィット（maxZoom制限付き）
      */
     fit() {
-        if (this.cy && this.cy.elements().length > 0) {
-            this.cy.fit(50);
+        this.fitWithZoomLimit();
+    }
+    
+    /**
+     * ズーム制限付きでフィット
+     * 小さいネットワークでもさらにズームインできる余地を残す
+     * 大きいネットワークでもさらにズームアウトできる余地を残す
+     */
+    fitWithZoomLimit() {
+        if (!this.cy || this.cy.elements().length === 0) return;
+        
+        // まず通常のfitを行う
+        this.cy.fit(50);
+        
+        // 現在のズームレベルを取得
+        const currentZoom = this.cy.zoom();
+        const minZoom = this.cy.minZoom();
+        const maxZoom = this.cy.maxZoom();
+        
+        // fit時のズーム上限1.5に制限（さらにズームインできる余地を残す）
+        const fitMaxZoom = 1.5;
+        // fit時のズーム下限を0.05に制限（さらにズームアウトできる余地を残す）
+        const fitMinZoom = 0.05;
+        
+        let appliedZoom = currentZoom;
+        
+        if (currentZoom > fitMaxZoom) {
+            appliedZoom = fitMaxZoom;
+        } else if (currentZoom < fitMinZoom) {
+            appliedZoom = fitMinZoom;
         }
+        
+        if (appliedZoom !== currentZoom) {
+            this.cy.zoom(appliedZoom);
+            this.cy.center();
+        }
+        
+        console.log('fitWithZoomLimit: currentZoom=' + currentZoom.toFixed(3) + ', applied=' + this.cy.zoom().toFixed(3) + ', minZoom=' + minZoom + ', maxZoom=' + maxZoom);
     }
 
     /**
@@ -353,15 +394,48 @@ class NetworkManager {
 
         const elements = this.cy.elements().jsons();
         
-        return {
-            version: '1.0',
+        // Style設定を深いコピーで取得
+        let styleSettings = null;
+        try {
+            if (typeof StylePanel !== 'undefined' && StylePanel.savedSettings) {
+                styleSettings = JSON.parse(JSON.stringify(StylePanel.savedSettings));
+                console.log('StylePanel.savedSettings found:', styleSettings);
+            } else {
+                console.warn('StylePanel or savedSettings not available');
+            }
+        } catch (e) {
+            console.error('Error getting styleSettings:', e);
+        }
+        
+        // Edge Bends設定を取得
+        let edgeBendsSettings = null;
+        try {
+            if (typeof edgeBends !== 'undefined' && edgeBends.currentBendStrength !== undefined) {
+                edgeBendsSettings = {
+                    bendStrength: edgeBends.currentBendStrength
+                };
+                console.log('edgeBends settings found:', edgeBendsSettings);
+            } else {
+                console.warn('edgeBends not available');
+            }
+        } catch (e) {
+            console.error('Error getting edgeBendsSettings:', e);
+        }
+        
+        const exportData = {
+            version: '1.1',
             exportDate: new Date().toISOString(),
             nodes: Array.from(this.nodes.entries()),
             edges: this.edges,
             nodeAttributes: Array.from(this.nodeAttributes.entries()),
             edgeAttributes: this.edgeAttributes,
-            cytoscapeElements: elements
+            cytoscapeElements: elements,
+            styleSettings: styleSettings,
+            edgeBendsSettings: edgeBendsSettings
         };
+        
+        console.log('Full export data:', exportData);
+        return exportData;
     }
 
     /**
@@ -388,7 +462,40 @@ class NetworkManager {
                 this.hideEmptyState();
                 
                 this.cy.add(data.cytoscapeElements);
-                this.cy.fit(50);
+                this.fitWithZoomLimit();
+            }
+
+            // Style設定を復元
+            console.log('Importing styleSettings:', data.styleSettings);
+            if (data.styleSettings && window.StylePanel) {
+                // 深いコピーで復元
+                if (data.styleSettings.node) {
+                    StylePanel.savedSettings.node = JSON.parse(JSON.stringify(data.styleSettings.node));
+                }
+                if (data.styleSettings.edge) {
+                    StylePanel.savedSettings.edge = JSON.parse(JSON.stringify(data.styleSettings.edge));
+                }
+                console.log('StylePanel.savedSettings restored:', StylePanel.savedSettings);
+                
+                // 復元したスタイルをグラフに適用（静的メソッドを使用）
+                try {
+                    StylePanel.applyAllStyles();
+                    console.log('Styles applied to graph');
+                } catch (styleError) {
+                    console.error('Error applying styles:', styleError);
+                }
+            }
+
+            // Edge Bends設定を復元
+            console.log('Importing edgeBendsSettings:', data.edgeBendsSettings);
+            if (data.edgeBendsSettings && window.edgeBends) {
+                edgeBends.currentBendStrength = data.edgeBendsSettings.bendStrength || 40;
+                const slider = document.getElementById('bend-strength-slider');
+                const valueDisplay = document.getElementById('bend-strength-value');
+                if (slider) slider.value = edgeBends.currentBendStrength;
+                if (valueDisplay) valueDisplay.textContent = edgeBends.currentBendStrength;
+                // エッジのカーブを適用
+                edgeBends.applyEdgeBends();
             }
 
             return true;

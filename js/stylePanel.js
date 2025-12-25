@@ -41,6 +41,187 @@ class StylePanel {
     };
 
     /**
+     * 保存された設定からスタイルを適用（静的メソッド）
+     * ファイル読み込み時など、パネルがない状態でもスタイルを適用可能
+     */
+    static applyAllStyles() {
+        if (!window.networkManager || !networkManager.cy) {
+            console.log('networkManager or cy not available for applyAllStyles');
+            return;
+        }
+
+        const nodeSettings = StylePanel.savedSettings.node;
+        const edgeSettings = StylePanel.savedSettings.edge;
+
+        // ノードスタイルを適用
+        networkManager.cy.nodes().forEach(node => {
+            const nodeStyles = {};
+            
+            // Label Font Size
+            nodeStyles['font-size'] = StylePanel.getStaticMappedValue(node, 'labelFontSize', nodeSettings.labelFontSize, nodeSettings.mappings, 'node') + 'px';
+            
+            // Label Color
+            nodeStyles['color'] = StylePanel.getStaticMappedColorValue(node, 'labelColor', nodeSettings.labelColor, nodeSettings.mappings, 'node');
+            
+            // Fill Color
+            nodeStyles['background-color'] = StylePanel.getStaticMappedColorValue(node, 'fillColor', nodeSettings.fillColor, nodeSettings.mappings, 'node');
+            
+            // Shape
+            nodeStyles['shape'] = StylePanel.getStaticMappedValue(node, 'shape', nodeSettings.shape, nodeSettings.mappings, 'node');
+            
+            // Size
+            const nodeSize = StylePanel.getStaticMappedValue(node, 'size', nodeSettings.size, nodeSettings.mappings, 'node');
+            nodeStyles['width'] = nodeSize + 'px';
+            nodeStyles['height'] = nodeSize + 'px';
+            
+            node.style(nodeStyles);
+        });
+
+        // エッジスタイルを適用
+        networkManager.cy.edges().forEach(edge => {
+            const edgeStyles = {};
+            
+            // Line Type
+            const lineType = StylePanel.getStaticMappedValue(edge, 'lineType', edgeSettings.lineType, edgeSettings.mappings, 'edge');
+            edgeStyles['line-style'] = lineType;
+            
+            // Arrow Shape
+            const arrowShape = StylePanel.getStaticMappedValue(edge, 'arrowShape', edgeSettings.arrowShape, edgeSettings.mappings, 'edge');
+            edgeStyles['target-arrow-shape'] = arrowShape;
+            edgeStyles['arrow-scale'] = 1.2;
+            
+            // Width
+            const width = StylePanel.getStaticMappedValue(edge, 'width', edgeSettings.width, edgeSettings.mappings, 'edge');
+            edgeStyles['width'] = width + 'px';
+            
+            // Line Color
+            const lineColor = StylePanel.getStaticMappedColorValue(edge, 'lineColor', edgeSettings.lineColor, edgeSettings.mappings, 'edge');
+            edgeStyles['line-color'] = lineColor;
+            edgeStyles['target-arrow-color'] = lineColor;
+            
+            edge.style(edgeStyles);
+        });
+
+        console.log('All styles applied via static method');
+    }
+
+    /**
+     * 静的マッピング値取得（数値・Shape用）
+     */
+    static getStaticMappedValue(element, property, defaultValue, mappings, elementType) {
+        const mapping = mappings[property];
+        if (!mapping || !mapping.column) {
+            return defaultValue;
+        }
+
+        const value = element.data(mapping.column);
+
+        // Continuousマッピングの場合
+        if (mapping.type === 'continuous' && mapping.continuousRange) {
+            const numValue = parseFloat(value);
+            if (!isNaN(numValue)) {
+                const { min, max } = StylePanel.getStaticNumericRange(mapping.column, elementType);
+                const ratio = (max !== min) ? (numValue - min) / (max - min) : 0;
+                const { minSize, maxSize } = mapping.continuousRange;
+                const calculatedSize = minSize + (maxSize - minSize) * ratio;
+                if (property === 'labelFontSize') {
+                    return Math.round(calculatedSize);
+                } else {
+                    return Math.round(calculatedSize * 10) / 10;
+                }
+            }
+            return defaultValue;
+        }
+
+        // Individualマッピングの場合
+        const strValue = String(value || '');
+        const mappedValue = mapping.values[strValue];
+        
+        return mappedValue !== undefined ? mappedValue : defaultValue;
+    }
+
+    /**
+     * 静的マッピング色取得（Color用 - Gradient対応）
+     */
+    static getStaticMappedColorValue(element, property, defaultColor, mappings, elementType) {
+        const mapping = mappings[property];
+        if (!mapping || !mapping.column) {
+            return defaultColor;
+        }
+
+        const value = element.data(mapping.column);
+
+        if (mapping.type === 'gradient' && mapping.gradientColors) {
+            const numValue = parseFloat(value);
+            if (!isNaN(numValue)) {
+                const { min, max } = StylePanel.getStaticNumericRange(mapping.column, elementType);
+                const ratio = (numValue - min) / (max - min);
+                return StylePanel.interpolateColorStatic(mapping.gradientColors.min, mapping.gradientColors.max, ratio);
+            }
+            return defaultColor;
+        } else {
+            const mappedColor = mapping.values[String(value || '')];
+            return mappedColor !== undefined ? mappedColor : defaultColor;
+        }
+    }
+
+    /**
+     * 静的数値範囲取得
+     */
+    static getStaticNumericRange(column, elementType) {
+        if (!window.networkManager || !networkManager.cy) return { min: 0, max: 1 };
+
+        let min = Infinity;
+        let max = -Infinity;
+
+        const elements = elementType === 'node' ? networkManager.cy.nodes() : networkManager.cy.edges();
+        elements.forEach(el => {
+            const value = el.data(column);
+            const numValue = parseFloat(value);
+            if (!isNaN(numValue)) {
+                min = Math.min(min, numValue);
+                max = Math.max(max, numValue);
+            }
+        });
+
+        if (min === Infinity) min = 0;
+        if (max === -Infinity) max = 1;
+        if (min === max) max = min + 1;
+
+        return { min, max };
+    }
+
+    /**
+     * 静的色補間
+     */
+    static interpolateColorStatic(color1, color2, ratio) {
+        const hex2rgb = (hex) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : { r: 0, g: 0, b: 0 };
+        };
+
+        const rgb2hex = (r, g, b) => {
+            return '#' + [r, g, b].map(x => {
+                const hex = Math.round(x).toString(16);
+                return hex.length === 1 ? '0' + hex : hex;
+            }).join('');
+        };
+
+        const c1 = hex2rgb(color1);
+        const c2 = hex2rgb(color2);
+
+        const r = c1.r + (c2.r - c1.r) * ratio;
+        const g = c1.g + (c2.g - c1.g) * ratio;
+        const b = c1.b + (c2.b - c1.b) * ratio;
+
+        return rgb2hex(r, g, b);
+    }
+
+    /**
      * パネルを表示（シングルトン的に管理）
      */
     static show(type) {
