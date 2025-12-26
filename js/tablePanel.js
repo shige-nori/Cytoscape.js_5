@@ -75,6 +75,7 @@ class TablePanel {
         this.panel.innerHTML = `
             <div class="table-panel-resizer" id="table-panel-resizer"></div>
             <div class="table-panel-header">
+                <span class="table-panel-title">Table Data</span>
                 <div class="table-panel-tabs">
                     <button class="table-tab active" data-tab="nodes">Nodes</button>
                     <button class="table-tab" data-tab="edges">Edges</button>

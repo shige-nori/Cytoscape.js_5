@@ -1112,11 +1112,22 @@ body {
 }
 
 .table-panel.collapsed {
-    height: 40px;
+    height: 36px;
 }
 
+.table-panel.collapsed .table-panel-tabs,
 .table-panel.collapsed .table-panel-body,
 .table-panel.collapsed .table-panel-footer {
+    display: none;
+}
+
+.table-panel.collapsed .table-panel-resizer {
+    display: none;
+}
+
+.table-panel.collapsed #table-columns-btn,
+.table-panel.collapsed #table-clear-filter-btn,
+.table-panel.collapsed #table-popout-btn {
     display: none;
 }
 
@@ -1139,11 +1150,22 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 0 16px;
-    height: 40px;
-    min-height: 40px;
+    height: 36px;
+    min-height: 36px;
     flex-shrink: 0;
     background: var(--background-color);
     border-bottom: 1px solid var(--border-color);
+}
+
+.table-panel-title {
+    display: none;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.table-panel.collapsed .table-panel-title {
+    display: block;
 }
 
 .table-panel-tabs {
